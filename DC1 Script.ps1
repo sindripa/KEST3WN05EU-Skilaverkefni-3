@@ -1,6 +1,7 @@
 ﻿
 #IP options
 $IPv6Enabled                = $false
+$DHCPv4ExclutionEnabled     = $false
 #IP stuff
 $publicAdapter              = "Ethernet0"
 $privateAdapter             = "Ethernet1"
@@ -8,7 +9,14 @@ $thisServerIPv4             = "172.16.19.254"
 $thisServerIPv4PrefixLength = "22"
 $dnsAddress                 = $thisServerIPv4
 $thisServerIPv6             = ""
+$DHCPv6ScopePrefix          = ""
 $InternalIPNetwork          = "172.16.16.0/22"
+$DHCPv4ScopeStartRange      = "172.16.16.1"
+$DHCPv4ScopeEndRange        = "172.16.18.88"
+$DHCPv4SubnetMask           = "255.255.252.0"
+$DHCPv4ExclutionStartRange  = ""
+$DHCPv4ExclutionEndRange    = ""
+$DHCPv4ExclutionScopeID     = ""
 
 #Names of stuff
 $thisServerName             = "DC1"
@@ -118,8 +126,6 @@ elseif(($currentIncrement -eq "3") -and ($ScriptEnabled -eq "1"))#Part3
     else{
         Set-ItemProperty -Path HKCU:\Environment -Name GROUPS -Value $tempString
     }
-
-
     #OU creation
     if (Get-ADOrganizationalUnit -Filter {Name -eq $company})
     {
@@ -129,7 +135,6 @@ elseif(($currentIncrement -eq "3") -and ($ScriptEnabled -eq "1"))#Part3
     {
         New-ADOrganizationalUnit -Name $company -Path $DC -ProtectedFromAccidentalDeletion $false
     }
-
     if (Get-ADGroup -Filter {SamAccountName -eq $everyoneGroupName})
     {
         Write-Warning "A group with the name $everyoneGroupName already exist in Active Directory."
@@ -138,12 +143,10 @@ elseif(($currentIncrement -eq "3") -and ($ScriptEnabled -eq "1"))#Part3
     {
         New-ADGroup -Name $everyoneGroupName -SamAccountName $everyoneGroupName -GroupCategory Security -GroupScope Universal -DisplayName $everyoneGroupName -Path $domain2
     }
-
     foreach ($group in $groupArray)
     {
         $domainGroup = $preDC+$group+$domain3
         $CN1          = 'CN='+$everyoneGroupName+$domain3
-
         if (Get-ADOrganizationalUnit -Filter {Name -eq $group})
 	    {
 		     Write-Warning "An OU with the name $group already exist in Active Directory."
@@ -152,7 +155,6 @@ elseif(($currentIncrement -eq "3") -and ($ScriptEnabled -eq "1"))#Part3
         {
             New-ADOrganizationalUnit -Name $group -Path $domain2 -ProtectedFromAccidentalDeletion $false
         }
-
         #Group creation
         if (Get-ADGroup -Filter {SamAccountName -eq $group})
 	    {
@@ -164,7 +166,6 @@ elseif(($currentIncrement -eq "3") -and ($ScriptEnabled -eq "1"))#Part3
             Add-ADGroupMember -Identity $CN1 -Members $group
         }
     }
-
     $supervisor = ""
     #User creation
     foreach ($User in $ADUsers)
@@ -185,11 +186,9 @@ elseif(($currentIncrement -eq "3") -and ($ScriptEnabled -eq "1"))#Part3
         $OU            = $preDC+$department+$domain3
         $Password      = $thepassword
         $CN2           = 'CN='+$department+','+$OU
-
         if($isSupervisorCSVEnabled){
             $isSupervisor  = $User.$isSupervisorCSV
         }
-
 	    if (Get-ADUser -Filter {SamAccountName -eq $Username})
 	    {
 		     Write-Warning "A user account with username $Username already exist in Active Directory."
@@ -212,7 +211,6 @@ elseif(($currentIncrement -eq "3") -and ($ScriptEnabled -eq "1"))#Part3
         #adds homefolder to users
         $UserDirectory=$UserRoot+$Username
         $HomeDirectory=$FolderRoot+$Username
-
         if (Test-Path $HomeDirectory -PathType Container)
         {
             Write-Warning "A directory with the name $HomeDirectory already exist in Active Directory."
@@ -230,9 +228,11 @@ elseif(($currentIncrement -eq "4") -and ($ScriptEnabled -eq "1"))#Part4
 {
     Set-ItemProperty -Path HKCU:\Environment -Name CURRENTINCREMENT -Value "1"
     Set-ItemProperty -Path HKCU:\Environment -Name SCRIPTENABLED -Value "0"
-
-    
-
+    Install-WindowsFeature dhcp -IncludeManagementTools
+    Add-DhcpServerv4Scope -Name "DHCPv4Scope" -StartRange $DHCPv4ScopeStartRange -EndRange $DHCPv4ScopeEndRange -SubnetMask $DHCPv4SubnetMask
+    if($DHCPv4ExclutionEnabled){Add-DhcpServerv4ExclusionRange -StartRange $DHCPv4ExclutionStartRange -EndRange $DHCPv4ExclutionEndRange -ScopeId $DHCPv4ExclutionScopeID}
+    if($IPv6Enabled){Add-DhcpServerv6Scope -Name "DHCPv6Scope" -Prefix $DHCPv6ScopePrefix}
+    Restart-Service Dhcpserver
     Restart-Computer
 }
 elseif($ScriptEnabled -eq "1")
