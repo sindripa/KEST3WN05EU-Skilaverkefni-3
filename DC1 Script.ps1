@@ -1,4 +1,4 @@
-
+﻿
 #IP options
 $IPv6Enabled                = $false
 #IP stuff
@@ -8,6 +8,7 @@ $thisServerIPv4             = "172.16.19.254"
 $thisServerIPv4PrefixLength = "22"
 $dnsAddress                 = $thisServerIPv4
 $thisServerIPv6             = ""
+$InternalIPNetwork          = "172.16.16.0/22"
 
 #Names of stuff
 $thisServerName             = "DC1"
@@ -18,6 +19,7 @@ $everyoneGroupName          = "everyEmployee"
 
 #Path related stuff
 $CSVpath                    = 'C:\csv.csv'
+$LocationOfScript           = 'C:\DC1 Script.ps1'
 $HomeDrive                  = 'H:'
 
 #Security
@@ -62,6 +64,7 @@ else
 if(($currentIncrement -eq "1") -and ($ScriptEnabled -eq "1"))#Part1
 {
     Set-ItemProperty -Path HKCU:\Environment -Name CURRENTINCREMENT -Value "2"
+    Set-ItemProperty -Path HKCU:\Software\Microsoft\Windows\CurrentVersion\Run -Name AutostartScriptDC1 -Value $LocationOfScript
     Rename-NetAdapter -Name $publicAdapter -NewName "Public"
     Rename-NetAdapter -Name $privateAdapter -NewName "Private"
     $privateAdapterIndex = (Get-NetAdapter -Name "Private").ifIndex
@@ -71,6 +74,7 @@ if(($currentIncrement -eq "1") -and ($ScriptEnabled -eq "1"))#Part1
     if($IPv6Enabled){New-NetIPAddress -InterfaceIndex $privateAdapterIndex -IPAddress $thisServerIPv6}
     Set-DnsClientServerAddress -InterfaceIndex $privateAdapterIndex -ServerAddresses $dnsAddress
     Install-WindowsFeature -Name "AD-Domain-Services" -IncludeManagementTools
+    New-NetNat -Name "ClientNAT" -InternalIPInterfaceAddressPrefix $InternalIPNetwork
     Restart-Computer
 }
 elseif(($currentIncrement -eq "2") -and ($ScriptEnabled -eq "1"))#Part2
